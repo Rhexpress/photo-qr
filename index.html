@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prendre une photo</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 25px;
+      text-align: center;
+    }
+
+    .box {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 18px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.1);
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    video,
+    img {
+      width: 100%;
+      max-width: 450px;
+      border-radius: 12px;
+      margin-top: 15px;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      margin-top: 15px;
+      border: 0;
+      border-radius: 10px;
+      background: #007bff;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #aaa;
+    }
+
+    #preview {
+      display: none;
+    }
+
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="box">
+
+  <h1>📸 Prendre une photo</h1>
+
+  <p>
+    Autorisez l'accès à votre caméra, puis prenez une photo.
+  </p>
+
+  <video id="camera" autoplay playsinline></video>
+
+  <button id="startButton">
+    📷 Activer la caméra
+  </button>
+
+  <button id="photoButton" style="display:none;">
+    📸 Prendre la photo
+  </button>
+
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <img id="preview" alt="Aperçu de la photo">
+
+  <button id="sendButton" style="display:none;">
+    ✉️ Envoyer la photo
+  </button>
+
+  <div id="status"></div>
+
+</div>
+
+<script>
+
+const SERVER_URL =
+"https://script.google.com/macros/s/AKfycbxRVE9xKYERdIvI8OuPq1H4w6mdrgKGEs1oLrxEsodpAWYk7OZjVEFxxA47-jWIgYbgWg/exec";
+
+const video = document.getElementById("camera");
+const canvas = document.getElementById("canvas");
+const preview = document.getElementById("preview");
+
+const startButton = document.getElementById("startButton");
+const photoButton = document.getElementById("photoButton");
+const sendButton = document.getElementById("sendButton");
+
+const status = document.getElementById("status");
+
+let stream = null;
+let photoData = null;
+
+startButton.addEventListener("click", async () => {
+
+  try {
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "environment"
+      },
+      audio: false
+    });
+
+    video.srcObject = stream;
+
+    startButton.style.display = "none";
+    photoButton.style.display = "block";
+
+    status.textContent = "";
+
+  } catch (error) {
+
+    status.textContent =
+      "❌ Impossible d'accéder à la caméra. Vérifiez l'autorisation.";
+
+    console.error(error);
+  }
+
+});
+
+photoButton.addEventListener("click", () => {
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const context = canvas.getContext("2d");
+
+  context.drawImage(
+    video,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  photoData = canvas.toDataURL("image/jpeg", 0.85);
+
+  preview.src = photoData;
+  preview.style.display = "block";
+
+  photoButton.style.display = "none";
+  sendButton.style.display = "block";
+
+  status.textContent =
+    "Photo prise. Vérifiez l'aperçu puis envoyez-la.";
+
+});
+
+sendButton.addEventListener("click", async () => {
+
+  if (!photoData) {
+    return;
+  }
+
+  sendButton.disabled = true;
+  status.textContent = "⏳ Envoi de la photo...";
+
+  try {
+
+    const response = await fetch(SERVER_URL, {
+
+      method: "POST",
+
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+
+      body: JSON.stringify({
+        image: photoData,
+        mimeType: "image/jpeg"
+      })
+
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+
+      status.textContent =
+        "✅ Photo envoyée avec succès !";
+
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+
+      sendButton.style.display = "none";
+
+    } else {
+
+      throw new Error(result.error || "Erreur inconnue");
+
+    }
+
+  } catch (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "❌ L'envoi a échoué. Réessayez.";
+
+    sendButton.disabled = false;
+  }
+
+});
+
+</script>
+
+</body>
+</html>
